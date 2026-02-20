@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Plus, Pencil, Trash2, ArrowRight, FileText, ExternalLink, Upload, X, CheckCircle, File } from 'lucide-react';
+import { Plus, Pencil, Trash2, ArrowRight, FileText, ExternalLink, Layers } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../lib/axios';
 import { API_ENDPOINTS, API_BASE_URL } from '../config/api';
@@ -8,6 +8,7 @@ import PageHeader from '../components/ui/PageHeader';
 import DataTable from '../components/ui/DataTable';
 import Modal from '../components/ui/Modal';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
+import SearchableSelect from '../components/ui/SearchableSelect';
 
 interface ClassFile {
   id: number;
@@ -28,158 +29,80 @@ interface AdminFile {
   createdAt?: string;
 }
 
+interface Level {
+  id: number;
+  name: string;
+}
+
 export default function TeacherClassFiles() {
   const { classId } = useParams<{ classId: string }>();
   const navigate = useNavigate();
   const [files, setFiles] = useState<ClassFile[]>([]);
+  const [levels, setLevels] = useState<Level[]>([]);
   const [adminFiles, setAdminFiles] = useState<AdminFile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<ClassFile | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // حالة رفع الملف
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
-  const [uploadedFileName, setUploadedFileName] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const [selectedLevelId, setSelectedLevelId] = useState<number | null>(null);
 
   const [formData, setFormData] = useState({
-    fileId: 0,
+    fileId: null as number | null,
     name: '',
     description: '',
     order: 1,
   });
 
-  const fetchFiles = async () => {
+  const fetchClassFiles = async () => {
     if (!classId) return;
     try {
       const response = await api.get(API_ENDPOINTS.teacherClassFiles(parseInt(classId)));
       setFiles(response.data.data || response.data || []);
     } catch {
-      toast.error('فشل في جلب البيانات');
+      toast.error('فشل في جلب بيانات ملفات الصف');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const fetchAdminFiles = async () => {
+  const fetchLevels = async () => {
     try {
-      const response = await api.get(API_ENDPOINTS.files);
+      const response = await api.get(API_ENDPOINTS.levels);
+      setLevels(response.data.data || response.data || []);
+    } catch {
+      toast.error('فشل في جلب المستويات');
+    }
+  };
+
+  const fetchAdminFiles = async (levelId: number) => {
+    try {
+      const response = await api.get(API_ENDPOINTS.files, {
+        params: { level_id: levelId }
+      });
       setAdminFiles(response.data.data || response.data || []);
     } catch {
-      console.error('Failed to fetch admin files');
+      console.error('Failed to fetch admin files for level:', levelId);
+      toast.error('فشل في جلب ملفات المستوى المحدد');
     }
   };
 
   useEffect(() => {
-    fetchFiles();
-    fetchAdminFiles();
+    fetchClassFiles();
+    fetchLevels();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classId]);
 
-  // دالة رفع الملف
-  const uploadFile = async (file: globalThis.File) => {
-    // التحقق من حجم الملف (50MB كحد أقصى)
-    const maxSize = 50 * 1024 * 1024;
-    if (file.size > maxSize) {
-      toast.error('حجم الملف يجب أن لا يتجاوز 50 ميجابايت');
-      return;
+  useEffect(() => {
+    if (selectedLevelId) {
+      fetchAdminFiles(selectedLevelId);
+    } else {
+      setAdminFiles([]); // Clear files if no level is selected
     }
-
-    setIsUploading(true);
-    setUploadProgress(0);
-    setUploadedFileName(file.name);
-
-    const formDataUpload = new FormData();
-    formDataUpload.append('file', file);
-
-    try {
-      // رفع الملف
-      const uploadResponse = await api.post(API_ENDPOINTS.upload.file, formDataUpload, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-        onUploadProgress: (progressEvent) => {
-          const progress = progressEvent.total
-            ? Math.round((progressEvent.loaded * 100) / progressEvent.total)
-            : 0;
-          setUploadProgress(progress);
-        },
-      });
-
-      // استخراج رابط الملف من الاستجابة
-      const filePath = uploadResponse.data.path || uploadResponse.data.url || uploadResponse.data.data?.path || uploadResponse.data.data?.url;
-      
-      if (filePath) {
-        // إنشاء سجل الملف في admin/files
-        const fileParams = new URLSearchParams();
-        fileParams.append('file', filePath);
-        
-        const createFileResponse = await api.post(API_ENDPOINTS.files, fileParams);
-        const newFileId = createFileResponse.data.id || createFileResponse.data.data?.id;
-        
-        if (newFileId) {
-          setFormData(prev => ({ ...prev, fileId: newFileId }));
-          // تحديث قائمة الملفات المتاحة
-          fetchAdminFiles();
-          toast.success('تم رفع الملف بنجاح');
-        } else {
-          toast.error('فشل في إنشاء سجل الملف');
-        }
-      } else {
-        toast.error('لم يتم العثور على رابط الملف في الاستجابة');
-      }
-    } catch (error: unknown) {
-      const err = error as { response?: { data?: { message?: string } } };
-      toast.error(err.response?.data?.message || 'فشل في رفع الملف');
-    } finally {
-      setIsUploading(false);
-      setUploadProgress(0);
-    }
-  };
-
-  // معالجة السحب والإفلات
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    
-    const droppedFiles = e.dataTransfer.files;
-    if (droppedFiles.length > 0) {
-      uploadFile(droppedFiles[0]);
-    }
-  };
-
-  // معالجة اختيار الملف
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = e.target.files;
-    if (selectedFiles && selectedFiles.length > 0) {
-      uploadFile(selectedFiles[0]);
-    }
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
+  }, [selectedLevelId]);
 
   const handleOpenModal = (file?: ClassFile) => {
-    // إعادة تعيين حالة الرفع
-    setIsUploading(false);
-    setUploadProgress(0);
-    setIsDragging(false);
-    setUploadedFileName('');
-
     if (file) {
       setSelectedFile(file);
       setFormData({
@@ -188,15 +111,19 @@ export default function TeacherClassFiles() {
         description: file.description || '',
         order: file.order,
       });
+      // This is a bit tricky, we don't have the levelId here unless the API provides it.
+      // For editing, the dropdowns might not be pre-selected.
     } else {
       setSelectedFile(null);
       setFormData({
-        fileId: 0,
+        fileId: null,
         name: '',
         description: '',
         order: files.length + 1,
       });
     }
+    setSelectedLevelId(null);
+    setAdminFiles([]);
     setIsModalOpen(true);
   };
 
@@ -205,7 +132,7 @@ export default function TeacherClassFiles() {
     if (!classId) return;
     
     if (!formData.fileId) {
-      toast.error('يرجى رفع ملف أولاً');
+      toast.error('يرجى اختيار ملف');
       return;
     }
     
@@ -230,7 +157,7 @@ export default function TeacherClassFiles() {
       }
 
       setIsModalOpen(false);
-      fetchFiles();
+      fetchClassFiles();
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } } };
       toast.error(err.response?.data?.message || 'حدث خطأ');
@@ -247,27 +174,13 @@ export default function TeacherClassFiles() {
       await api.delete(`${API_ENDPOINTS.teacherClassFiles(parseInt(classId))}/${selectedFile.id}`);
       toast.success('تم حذف الملف بنجاح');
       setIsDeleteDialogOpen(false);
-      fetchFiles();
+      fetchClassFiles();
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } } };
       toast.error(err.response?.data?.message || 'فشل في حذف الملف');
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  // استخراج اسم الملف من المسار
-  const extractFileName = (filePath: string) => {
-    if (!filePath) return '';
-    // استخراج اسم الملف من المسار
-    const parts = filePath.split('/');
-    return parts[parts.length - 1] || filePath;
-  };
-
-  // الحصول على اسم الملف من القائمة
-  const getSelectedFileName = () => {
-    const file = adminFiles.find(f => f.id === formData.fileId);
-    return file?.name ? extractFileName(file.name) : '';
   };
 
   const columns = [
@@ -382,120 +295,33 @@ export default function TeacherClassFiles() {
         title={selectedFile ? 'تعديل الملف' : 'إضافة ملف جديد'}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* منطقة رفع الملف */}
-          <div>
-            <label className="block text-slate-600 text-sm mb-2">الملف</label>
-            
-            <div
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              onClick={() => !isUploading && fileInputRef.current?.click()}
-              className={`
-                relative border-2 border-dashed rounded-xl p-6 text-center cursor-pointer
-                transition-all duration-300
-                ${isDragging 
-                  ? 'border-orange-500 bg-orange-500/10' 
-                  : 'border-slate-600 hover:border-slate-500 hover:bg-white border border-slate-200/50'
-                }
-                ${isUploading ? 'pointer-events-none' : ''}
-              `}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                onChange={handleFileSelect}
-                className="hidden"
-                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar"
+          <div className="space-y-4 p-4 border border-slate-200 rounded-lg">
+            <h3 className="text-md font-semibold text-slate-800">اختيار ملف</h3>
+            <div>
+              <label className="block text-slate-600 text-sm mb-2">1. اختر المستوى</label>
+              <SearchableSelect
+                options={levels}
+                value={selectedLevelId}
+                onChange={(value) => {
+                  setSelectedLevelId(value as number);
+                  setFormData(prev => ({ ...prev, fileId: null }));
+                }}
+                placeholder="ابحث عن مستوى..."
+                icon={Layers}
               />
-
-              {isUploading ? (
-                // حالة الرفع
-                <div className="space-y-3">
-                  <div className="w-14 h-14 mx-auto rounded-full bg-orange-500/20 flex items-center justify-center">
-                    <Upload className="w-7 h-7 text-orange-400 animate-pulse" />
-                  </div>
-                  <div>
-                    <p className="text-slate-600">جاري رفع الملف...</p>
-                    <p className="text-slate-500 text-sm truncate max-w-xs mx-auto">{uploadedFileName}</p>
-                  </div>
-                  <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                    <div 
-                      className="h-full bg-gradient-to-r from-orange-500 to-amber-400 transition-all duration-300 ease-out"
-                      style={{ width: `${uploadProgress}%` }}
-                    />
-                  </div>
-                  <p className="text-orange-400 font-medium">{uploadProgress}%</p>
-                </div>
-              ) : formData.fileId ? (
-                // عرض الملف المرفوع
-                <div className="space-y-3">
-                  <div className="relative w-16 h-16 mx-auto rounded-xl bg-orange-500/20 flex items-center justify-center">
-                    <File className="w-8 h-8 text-orange-400" />
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setFormData({ ...formData, fileId: 0 });
-                        setUploadedFileName('');
-                      }}
-                      className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
-                    >
-                      <X className="w-4 h-4 text-slate-900" />
-                    </button>
-                  </div>
-                  <div className="flex items-center justify-center gap-2 text-orange-400">
-                    <CheckCircle className="w-4 h-4" />
-                    <span className="text-sm">تم رفع الملف</span>
-                  </div>
-                  <p className="text-slate-500 text-xs truncate max-w-xs mx-auto" dir="ltr">
-                    {getSelectedFileName() || uploadedFileName}
-                  </p>
-                  <p className="text-slate-600 text-xs">اضغط لتغيير الملف</p>
-                </div>
-              ) : (
-                // الحالة الافتراضية
-                <div className="space-y-3">
-                  <div className={`
-                    w-14 h-14 mx-auto rounded-full flex items-center justify-center
-                    ${isDragging ? 'bg-orange-500/20' : 'bg-slate-100'}
-                  `}>
-                    <Upload className={`w-7 h-7 ${isDragging ? 'text-orange-400' : 'text-slate-600'}`} />
-                  </div>
-                  <div>
-                    <p className={`${isDragging ? 'text-orange-400' : 'text-slate-600'}`}>
-                      {isDragging ? 'أفلت الملف هنا' : 'اسحب الملف هنا أو اضغط للاختيار'}
-                    </p>
-                    <p className="text-slate-500 text-sm mt-1">
-                      PDF, DOC, XLS, PPT, TXT, ZIP حتى 50MB
-                    </p>
-                  </div>
-                </div>
-              )}
             </div>
 
-            {/* اختيار من الملفات الموجودة */}
-            {adminFiles.length > 0 && !formData.fileId && (
-              <div className="mt-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="flex-1 h-px bg-slate-100"></div>
-                  <span className="text-slate-500 text-xs">أو اختر من الملفات الموجودة</span>
-                  <div className="flex-1 h-px bg-slate-100"></div>
-                </div>
-                <select
-                  value={formData.fileId}
-                  onChange={(e) => setFormData({ ...formData, fileId: parseInt(e.target.value) })}
-                  className="input-field text-sm"
-                >
-                  <option value="">اختر ملف موجود</option>
-                  {adminFiles.map((file) => (
-                    <option key={file.id} value={file.id}>
-                      📄 {extractFileName(file.name)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+            <div>
+              <label className="block text-slate-600 text-sm mb-2">2. اختر الملف</label>
+              <SearchableSelect
+                options={adminFiles}
+                value={formData.fileId}
+                onChange={(value) => setFormData({ ...formData, fileId: value as number })}
+                placeholder={!selectedLevelId ? "اختر مستوى أولاً" : "ابحث عن ملف..."}
+                icon={FileText}
+                disabled={!selectedLevelId}
+              />
+            </div>
           </div>
 
           <div>
@@ -536,7 +362,7 @@ export default function TeacherClassFiles() {
             <button 
               type="submit" 
               className="btn-primary flex-1" 
-              disabled={isSubmitting || isUploading || !formData.fileId}
+              disabled={isSubmitting || !formData.fileId}
             >
               {isSubmitting ? 'جاري الحفظ...' : selectedFile ? 'تحديث' : 'إضافة'}
             </button>

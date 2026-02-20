@@ -5,6 +5,7 @@ import MainLayout from './components/Layout/MainLayout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import AdminAccounts from './pages/AdminAccounts';
+import Countries from './pages/Countries';
 import Levels from './pages/Levels';
 import Lessons from './pages/Lessons';
 import Teachers from './pages/Teachers';
@@ -16,6 +17,7 @@ import TeacherClasses from './pages/TeacherClasses';
 import TeacherClassStudents from './pages/TeacherClassStudents';
 import TeacherClassSessions from './pages/TeacherClassSessions';
 import TeacherClassFiles from './pages/TeacherClassFiles';
+import TeacherSpaces from './pages/TeacherSpaces';
 import Assignments from './pages/Assignments';
 import AssignmentBlocks from './pages/AssignmentBlocks';
 import Questions from './pages/Questions';
@@ -76,6 +78,7 @@ function AppRoutes() {
       >
         <Route index element={<Dashboard />} />
         <Route path="admin-accounts" element={<AdminAccounts />} />
+        <Route path="countries" element={<Countries />} />
         <Route path="levels" element={<Levels />} />
         <Route path="lessons" element={<Lessons />} />
         <Route path="teachers" element={<Teachers />} />
@@ -87,6 +90,7 @@ function AppRoutes() {
         <Route path="teacher-classes/:classId/students" element={<TeacherClassStudents />} />
         <Route path="teacher-classes/:classId/sessions" element={<TeacherClassSessions />} />
         <Route path="teacher-classes/:classId/files" element={<TeacherClassFiles />} />
+        <Route path="teacher-spaces" element={<TeacherSpaces />} />
         <Route path="assignments" element={<Assignments />} />
         <Route path="assignment-blocks" element={<AssignmentBlocks />} />
         <Route path="questions" element={<Questions />} />

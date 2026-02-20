@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Globe } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../lib/axios';
 import { API_ENDPOINTS } from '../config/api';
@@ -7,17 +7,28 @@ import PageHeader from '../components/ui/PageHeader';
 import DataTable from '../components/ui/DataTable';
 import Modal from '../components/ui/Modal';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
+import SearchableSelect from '../components/ui/SearchableSelect';
+
+interface Country {
+  id: number;
+  name: string;
+}
 
 interface Teacher {
   id: number;
   firstName: string;
   lastName: string;
   email: string;
+  countryId: number;
+  Country: {
+    name: string;
+  };
   createdAt: string;
 }
 
 export default function Teachers() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [countries, setCountries] = useState<Country[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -29,6 +40,7 @@ export default function Teachers() {
     lastName: '',
     email: '',
     password: '',
+    countryId: null as number | null,
   });
 
   const fetchTeachers = async () => {
@@ -36,14 +48,24 @@ export default function Teachers() {
       const response = await api.get(API_ENDPOINTS.teachers);
       setTeachers(response.data.data || response.data || []);
     } catch (error) {
-      toast.error('فشل في جلب البيانات');
+      toast.error('فشل في جلب بيانات المعلمين');
     } finally {
       setIsLoading(false);
     }
   };
 
+  const fetchCountries = async () => {
+    try {
+      const response = await api.get(API_ENDPOINTS.countries);
+      setCountries(response.data.data || response.data || []);
+    } catch (error) {
+      toast.error('فشل في جلب بيانات الدول');
+    }
+  };
+
   useEffect(() => {
     fetchTeachers();
+    fetchCountries();
   }, []);
 
   const handleOpenModal = (teacher?: Teacher) => {
@@ -54,16 +76,21 @@ export default function Teachers() {
         lastName: teacher.lastName,
         email: teacher.email,
         password: '',
+        countryId: teacher.countryId,
       });
     } else {
       setSelectedTeacher(null);
-      setFormData({ firstName: '', lastName: '', email: '', password: '' });
+      setFormData({ firstName: '', lastName: '', email: '', password: '', countryId: null });
     }
     setIsModalOpen(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.countryId) {
+      toast.error('يرجى اختيار الدولة');
+      return;
+    }
     setIsSubmitting(true);
 
     try {
@@ -71,6 +98,7 @@ export default function Teachers() {
       params.append('firstName', formData.firstName);
       params.append('lastName', formData.lastName);
       params.append('email', formData.email);
+      params.append('countryId', formData.countryId.toString());
       if (formData.password) {
         params.append('password', formData.password);
       }
@@ -123,12 +151,22 @@ export default function Teachers() {
       ),
     },
     { key: 'email', header: 'البريد الإلكتروني' },
+    // { 
+    //   key: 'country', 
+    //   header: 'الدولة',
+    //   render: (teacher: Teacher) => (
+    //     <div className="flex items-center gap-2">
+    //       <Globe className="w-4 h-4 text-slate-500" />
+    //       <span>{teacher.country?.name || '-'}</span>
+    //     </div>
+    //   ),
+    // },
     {
       key: 'createdAt',
       header: 'تاريخ الإنشاء',
       render: (teacher: Teacher) => (
         <span className="text-slate-600">
-          {teacher.createdAt ? new Date(teacher.createdAt).toLocaleDateString('ar-SYRIA-SYRIAN-ARABIC') : '-'}
+          {teacher.createdAt ? new Date(teacher.createdAt).toLocaleDateString('ar-SY') : '-'}
         </span>
       ),
     },
@@ -208,15 +246,28 @@ export default function Teachers() {
             </div>
           </div>
 
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <label className="block text-slate-600 text-sm mb-2">البريد الإلكتروني</label>
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                className="input-field"
+                dir="ltr"
+                required
+              />
+            </div>
+          </div>
+
           <div>
-            <label className="block text-slate-600 text-sm mb-2">البريد الإلكتروني</label>
-            <input
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="input-field"
-              dir="ltr"
-              required
+            <label className="block text-slate-600 text-sm mb-2">الدولة</label>
+            <SearchableSelect
+              options={countries}
+              value={formData.countryId}
+              onChange={(value) => setFormData({ ...formData, countryId: value as number })}
+              placeholder="ابحث عن دولة..."
+              icon={Globe}
             />
           </div>
 

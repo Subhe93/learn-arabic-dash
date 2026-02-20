@@ -453,7 +453,7 @@ export default function Levels() {
                 type="color"
                 value={formData.color}
                 onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                className="input-field w-full"
+                className="input-field w-full h-12"
               />
             </div>
             <div>

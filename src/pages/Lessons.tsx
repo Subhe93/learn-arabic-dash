@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Pencil, Trash2, Video, FileText, Gamepad2, Upload, X, CheckCircle, Image, File, ExternalLink } from 'lucide-react';
+import { Plus, Pencil, Trash2, Video, FileText, Gamepad2, Upload, X, CheckCircle, Image, File, ExternalLink, Music, Layers } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../lib/axios';
 import { API_ENDPOINTS, API_BASE_URL } from '../config/api';
@@ -8,6 +8,7 @@ import DataTable from '../components/ui/DataTable';
 import Modal from '../components/ui/Modal';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import RichTextEditor from '../components/ui/RichTextEditor';
+import SearchableSelect from '../components/ui/SearchableSelect';
 
 interface Level {
   id: number;
@@ -23,11 +24,12 @@ interface Lesson {
   imageUrl: string;
   pdfUrl: string;
   game: string;
+  audioUrl: string;
   levelId: number;
 }
 
-type UploadType = 'image' | 'video' | 'file';
-type PreviewType = 'image' | 'video' | 'pdf' | 'game' | null;
+type UploadType = 'image' | 'video' | 'file' | 'audio';
+type PreviewType = 'image' | 'video' | 'pdf' | 'game' | 'audio' | null;
 
 export default function Lessons() {
   const [lessons, setLessons] = useState<Lesson[]>([]);
@@ -52,9 +54,10 @@ export default function Lessons() {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
-    levelId: 0,
+    levelId: null as number | null,
     name: '',
     description: '',
     sortOrder: 1,
@@ -62,6 +65,7 @@ export default function Lessons() {
     imageUrl: '',
     pdfUrl: '',
     game: '',
+    audioUrl: '',
   });
 
   // فتح معاينة الوسائط
@@ -85,6 +89,7 @@ export default function Lessons() {
       image: { mimes: ['image/'], maxSize: 5 * 1024 * 1024, label: 'صورة' },
       video: { mimes: ['video/'], maxSize: 100 * 1024 * 1024, label: 'فيديو' },
       file: { mimes: ['application/pdf'], maxSize: 20 * 1024 * 1024, label: 'ملف PDF' },
+      audio: { mimes: ['audio/'], maxSize: 20 * 1024 * 1024, label: 'ملف صوتي' },
     };
 
     const config = validTypes[type];
@@ -112,6 +117,7 @@ export default function Lessons() {
       image: API_ENDPOINTS.upload.image,
       video: API_ENDPOINTS.upload.video,
       file: API_ENDPOINTS.upload.file,
+      audio: API_ENDPOINTS.upload.audio,
     };
     const endpoint = endpointMap[type];
 
@@ -137,6 +143,7 @@ export default function Lessons() {
           image: 'imageUrl',
           video: 'videoUrl',
           file: 'pdfUrl',
+          audio: 'audioUrl',
         };
         setFormData(prev => ({ ...prev, [fieldMap[type]]: fileUrl }));
         toast.success(`تم رفع ${config.label} بنجاح`);
@@ -189,6 +196,7 @@ export default function Lessons() {
       case 'image': return imageInputRef;
       case 'video': return videoInputRef;
       case 'file': return fileInputRef;
+      case 'audio': return audioInputRef;
     }
   };
 
@@ -245,11 +253,12 @@ export default function Lessons() {
         imageUrl: lesson.imageUrl || '',
         pdfUrl: lesson.pdfUrl || '',
         game: lesson.game || '',
+        audioUrl: lesson.audioUrl || '',
       });
     } else {
       setSelectedLesson(null);
       setFormData({
-        levelId: selectedLevelId || 0,
+        levelId: selectedLevelId,
         name: '',
         description: '',
         sortOrder: 1,
@@ -257,6 +266,7 @@ export default function Lessons() {
         imageUrl: '',
         pdfUrl: '',
         game: '',
+        audioUrl: '',
       });
     }
     setIsModalOpen(true);
@@ -264,6 +274,10 @@ export default function Lessons() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.levelId) {
+        toast.error('يرجى اختيار المستوى');
+        return;
+    }
     setIsSubmitting(true);
 
     try {
@@ -278,6 +292,7 @@ export default function Lessons() {
             imageUrl: formData.imageUrl,
             pdfUrl: formData.pdfUrl,
             game: formData.game,
+            audioUrl: formData.audioUrl,
           },
         ],
       };
@@ -490,6 +505,15 @@ export default function Lessons() {
               <FileText className="w-4 h-4 text-red-400" />
             </button>
           )}
+          {lesson.audioUrl && (
+            <button
+              onClick={() => openPreview('audio', lesson.audioUrl, `صوت: ${lesson.name}`)}
+              className="p-1.5 rounded bg-yellow-500/20 hover:bg-yellow-500/40 transition-colors cursor-pointer"
+              title="عرض الصوت"
+            >
+              <Music className="w-4 h-4 text-yellow-400" />
+            </button>
+          )}
           {lesson.game && (
             <button
               onClick={() => openPreview('game', lesson.game, `لعبة: ${lesson.name}`)}
@@ -550,19 +574,15 @@ export default function Lessons() {
       />
 
       {/* Level Filter */}
-      <div className="mb-6">
+      <div className="mb-6 max-w-xs">
         <label className="block text-slate-600 text-sm mb-2">اختر المستوى</label>
-        <select
-          value={selectedLevelId || ''}
-          onChange={(e) => setSelectedLevelId(parseInt(e.target.value))}
-          className="input-field max-w-xs"
-        >
-          {levels.map((level) => (
-            <option key={level.id} value={level.id}>
-              {level.name}
-            </option>
-          ))}
-        </select>
+        <SearchableSelect
+          options={levels}
+          value={selectedLevelId}
+          onChange={(value) => setSelectedLevelId(value as number)}
+          placeholder="اختر مستوى..."
+          icon={Layers}
+        />
       </div>
 
       <DataTable
@@ -585,19 +605,13 @@ export default function Lessons() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-slate-600 text-sm mb-2">المستوى</label>
-              <select
+              <SearchableSelect
+                options={levels}
                 value={formData.levelId}
-                onChange={(e) => setFormData({ ...formData, levelId: parseInt(e.target.value) })}
-                className="input-field"
-                required
-              >
-                <option value="">اختر المستوى</option>
-                {levels.map((level) => (
-                  <option key={level.id} value={level.id}>
-                    {level.name}
-                  </option>
-                ))}
-              </select>
+                onChange={(value) => setFormData({ ...formData, levelId: value as number })}
+                placeholder="اختر المستوى..."
+                icon={Layers}
+              />
             </div>
             <div>
               <label className="block text-slate-600 text-sm mb-2">الترتيب</label>
@@ -630,7 +644,7 @@ export default function Lessons() {
           />
 
           {/* منطقة رفع الملفات */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <FileUploadZone
               type="image"
               value={formData.imageUrl}
@@ -657,6 +671,15 @@ export default function Lessons() {
               icon={File}
               placeholder="files/lesson.pdf"
               fieldKey="pdfUrl"
+            />
+            <FileUploadZone
+              type="audio"
+              value={formData.audioUrl}
+              label="ملف صوتي"
+              accept="audio/*"
+              icon={Music}
+              placeholder="audio/lesson.mp3"
+              fieldKey="audioUrl"
             />
           </div>
 
@@ -764,6 +787,19 @@ export default function Lessons() {
                   >
                     متصفحك لا يدعم تشغيل الفيديو
                   </video>
+                </div>
+              )}
+
+              {previewType === 'audio' && (
+                <div className="flex items-center justify-center p-8">
+                  <audio
+                    src={`${API_BASE_URL}/uploads/${previewUrl}`}
+                    controls
+                    autoPlay
+                    className="w-full"
+                  >
+                    متصفحك لا يدعم تشغيل الصوت
+                  </audio>
                 </div>
               )}
               

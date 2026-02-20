@@ -19,17 +19,21 @@ import {
   UserPlus,
   Receipt,
   FileCheck,
+  Globe,
+  Library,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
 const menuItems = [
   { path: '/', icon: LayoutDashboard, label: 'لوحة التحكم' },
   { path: '/admin-accounts', icon: UserCog, label: 'حسابات المشرفين' },
+  { path: '/countries', icon: Globe, label: 'الدول' },
   { path: '/levels', icon: Layers, label: 'المستويات' },
   { path: '/lessons', icon: BookOpen, label: 'الدروس' },
   { path: '/teachers', icon: GraduationCap, label: 'المعلمين' },
   { path: '/students', icon: Users, label: 'الطلاب' },
   { path: '/teacher-classes', icon: School, label: 'صفوف المعلمين' },
+  { path: '/teacher-spaces', icon: Library, label: 'واحة المدرس' },
   { path: '/assignments', icon: ClipboardList, label: 'الواجبات' },
   { path: '/assignment-blocks', icon: Blocks, label: 'كتل الواجبات' },
   { path: '/questions', icon: HelpCircle, label: 'الأسئلة' },

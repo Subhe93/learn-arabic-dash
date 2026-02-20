@@ -24,6 +24,9 @@ export const API_ENDPOINTS = {
   // Admin Accounts
   adminAccounts: "/admin/admin-accounts",
 
+  // Countries
+  countries: "/admin/countries",
+
   // Levels
   levels: "/admin/levels",
 
@@ -54,6 +57,9 @@ export const API_ENDPOINTS = {
     `/admin/teacher-classes/${classId}/sessions`,
   teacherClassFiles: (classId: number) =>
     `/admin/teacher-classes/${classId}/files`,
+
+  // Teacher Spaces
+  teacherSpaces: "/admin/teacher-spaces",
 
   // Assignments
   assignments: "/admin/assignments",
